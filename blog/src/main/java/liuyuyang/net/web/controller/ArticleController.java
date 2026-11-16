@@ -7,7 +7,9 @@ import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import liuyuyang.net.core.annotation.NoTokenRequired;
 import liuyuyang.net.core.annotation.RateLimit;
+import liuyuyang.net.core.security.PublishTokenGuard;
 import liuyuyang.net.core.utils.Paging;
+import liuyuyang.net.core.utils.PublishTokenUtils;
 import liuyuyang.net.core.utils.Result;
 import liuyuyang.net.dto.article.ArticleFormDTO;
 import liuyuyang.net.dto.PageDTO;
@@ -37,20 +39,30 @@ import java.util.Map;
 public class ArticleController {
     @Resource
     private ArticleService articleService;
+    @Resource
+    private PublishTokenGuard publishTokenGuard;
 
     @PostMapping
     @ApiOperation("新增文章")
     @ApiOperationSupport(author = "刘宇阳 | liuyuyang1024@yeah.net", order = 1)
-    public Result<String> addArticleData(@RequestBody @Validated(ValidationGroups.Create.class) ArticleFormDTO articledFormDTO) {
+    public Result<Integer> addArticleData(@RequestBody @Validated(ValidationGroups.Create.class) ArticleFormDTO articledFormDTO) {
         articledFormDTO.setId(null);
-        articleService.addArticleData(articledFormDTO);
-        return Result.success();
+        if (PublishTokenUtils.isCurrentRequestPublishToken()) {
+            // 发布令牌只允许建草稿，避免自动化流程误发文章
+            articledFormDTO.getConfig().setIsDraft(true);
+            articledFormDTO.getConfig().setIsDel(false);
+        }
+        Integer id = articleService.addArticleData(articledFormDTO);
+        return Result.success(id);
     }
 
     @DeleteMapping("/{id}/{is_del}")
     @ApiOperation("删除文章")
     @ApiOperationSupport(author = "刘宇阳 | liuyuyang1024@yeah.net", order = 2)
     public Result<String> delArticleData(@PathVariable Integer id, @PathVariable Integer is_del) {
+        if (PublishTokenUtils.isCurrentRequestPublishToken()) {
+            publishTokenGuard.assertDraft(id);
+        }
         articleService.delArticleData(id, is_del);
         return Result.success();
     }
@@ -75,6 +87,12 @@ public class ArticleController {
     @ApiOperation("编辑文章")
     @ApiOperationSupport(author = "刘宇阳 | liuyuyang1024@yeah.net", order = 5)
     public Result<String> editArticleData(@RequestBody @Validated(ValidationGroups.Update.class) ArticleFormDTO articleFormDTO) {
+        if (PublishTokenUtils.isCurrentRequestPublishToken()) {
+            publishTokenGuard.assertDraft(articleFormDTO.getId());
+            // 发布令牌不能通过编辑把草稿改成已发布
+            articleFormDTO.getConfig().setIsDraft(true);
+            articleFormDTO.getConfig().setIsDel(false);
+        }
         articleService.editArticleData(articleFormDTO);
         return Result.success();
     }

@@ -58,8 +58,12 @@ mybatis-plus:
   configuration:
     default-enum-type-handler: com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler
 
-# 限流注解配置
 blog:
+  # 发布令牌：服务端只保存 SHA-256 摘要，原始令牌由使用者放在密码保险库中
+  # 多个摘要用英文逗号分隔，便于轮换；留空表示禁用
+  publish-token:
+    sha256: ${PUBLISH_TOKEN_SHA256:}
+  # 限流注解配置
   limit:
     tokens: 100     # 所有受限接口统一每周期允许 x 次
     duration: 60    # 周期统一为 60 秒

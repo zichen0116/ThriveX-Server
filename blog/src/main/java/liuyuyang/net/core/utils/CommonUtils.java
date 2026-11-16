@@ -43,11 +43,14 @@ public class CommonUtils {
     }
 
     /**
-     * 判断是否是管理员
+     * 判断是否是管理员。
+     * <p>
+     * 发布令牌也视为管理员视角，用于让自动化脚本能读取草稿和隐藏分类；
+     * 它能访问的接口仍由 {@code PublishTokenScope} 的白名单严格限制。
      */
     public static boolean isAdmin() {
         String token = getHeader("Authorization");
-        return parseAdminToken(token);
+        return parseAdminToken(token) || PublishTokenUtils.matches(token);
     }
 
     // 统一管理员鉴权逻辑（仅供 isAdmin 调用）

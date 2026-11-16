@@ -86,9 +86,13 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
     }
 
     @Override
-    public void addArticleData(ArticleFormDTO articleFormDTO) {
+    public Integer addArticleData(ArticleFormDTO articleFormDTO) {
         Article article = new Article();
         BeanUtils.copyProperties(articleFormDTO, article);
+        // 自动化脚本可能不传创建时间；补当前时间，避免列表排序和上一篇/下一篇失效
+        if (article.getCreateTime() == null) {
+            article.setCreateTime(System.currentTimeMillis());
+        }
         articleMapper.insert(article);
 
         // 新增分类
@@ -129,6 +133,8 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
         articleConfig.setIsDel(false);
 
         articleConfigMapper.insert(articleConfig);
+
+        return article.getId();
     }
 
     @Override

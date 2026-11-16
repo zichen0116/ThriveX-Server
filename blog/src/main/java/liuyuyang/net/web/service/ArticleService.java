@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.util.List;
 
 public interface ArticleService extends IService<Article> {
-    void addArticleData(ArticleFormDTO articleFormDTO);
+    Integer addArticleData(ArticleFormDTO articleFormDTO);
 
     void delArticleData(Integer id, Integer is_del);
 

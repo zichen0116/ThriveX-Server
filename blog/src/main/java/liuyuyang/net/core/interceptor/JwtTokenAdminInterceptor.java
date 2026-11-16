@@ -4,9 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import liuyuyang.net.core.annotation.NoTokenRequired;
 import liuyuyang.net.core.execption.CustomException;
 import liuyuyang.net.core.properties.JwtProperties;
+import liuyuyang.net.core.security.PublishTokenScope;
 import liuyuyang.net.core.utils.BlackListUtils;
 import liuyuyang.net.core.utils.IpUtils;
 import liuyuyang.net.core.utils.JwtUtils;
+import liuyuyang.net.core.utils.PublishTokenUtils;
 import liuyuyang.net.model.UserToken;
 import liuyuyang.net.web.mapper.UserTokenMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -64,18 +66,34 @@ public class JwtTokenAdminInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        // 校验令牌
+        // 发布令牌：独立于网页登录 token，不做 JWT 解析，只按方法 + 路径做最小权限校验
+        if (PublishTokenUtils.matches(token)) {
+            String path = PublishTokenScope.resolvePath(request);
+            if (!PublishTokenScope.isAllowed(request.getMethod(), path)) {
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                log.warn("发布令牌无权访问：{} {}（指纹 {}）", request.getMethod(), path,
+                        PublishTokenUtils.fingerprint(token));
+                throw new CustomException(403, "发布令牌无权访问该接口");
+            }
+            request.setAttribute(PublishTokenUtils.REQUEST_ATTRIBUTE, Boolean.TRUE);
+            log.info("发布令牌校验通过：{} {}（指纹 {}）", request.getMethod(), path,
+                    PublishTokenUtils.fingerprint(token));
+            return true;
+        }
+
+        // 校验登录令牌
         try {
-            log.info("jwt校验：{}", token);
             if (token == null || token.trim().isEmpty()) {
                 throw new CustomException(401, "请先登录");
             }
 
-            // 处理Authorization的Bearer
-            if (token.startsWith("Bearer ")) token = token.substring(7);
-            if (token.trim().isEmpty()) {
+            // 处理 Authorization 的 Bearer 前缀
+            token = PublishTokenUtils.stripBearer(token);
+            if (token.isEmpty()) {
                 throw new CustomException(401, "无效或过期的 Token");
             }
+
+            log.info("JWT 校验（指纹 {}）", PublishTokenUtils.fingerprint(token));
 
             LambdaQueryWrapper<UserToken> userTokenLambdaQueryWrapper = new LambdaQueryWrapper<>();
             userTokenLambdaQueryWrapper.eq(UserToken::getToken, token);
@@ -89,7 +107,7 @@ public class JwtTokenAdminInterceptor implements HandlerInterceptor {
                 throw new CustomException(401, "该账号已在另一台设备登录");
             }
         } catch (Exception ex) {
-            System.out.println("校验失败：" + ex);
+            log.warn("令牌校验失败：{}", ex.getMessage());
             // 校验失败，响应401状态码
             response.setStatus(401);
             String message = ex.getMessage() != null ? ex.getMessage() : "无效或过期的token";
